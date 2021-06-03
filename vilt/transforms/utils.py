@@ -7,6 +7,12 @@ class MinMaxResize:
         self.min = shorter
         self.max = longer
 
+    def __repr__(self):
+        return 'MinMaxResize(shorter={}, longer={})'.format(
+            self.min,
+            self.max
+        )
+
     def __call__(self, x):
         w, h = x.size
         scale = self.min / min(w, h)
@@ -19,6 +25,9 @@ class MinMaxResize:
             scale = self.max / max(newh, neww)
             newh = newh * scale
             neww = neww * scale
+
+        neww = max(64, neww)
+        newh = max(64, newh)
 
         newh, neww = int(newh + 0.5), int(neww + 0.5)
         newh, neww = newh // 32 * 32, neww // 32 * 32

@@ -210,12 +210,24 @@ def set_schedule(pl_module):
                 if not any(nd in n for nd in no_decay)
                 and not any(bb in n for bb in head_names)
             ],
+            'param_names': [
+                n
+                for n, p in pl_module.named_parameters()
+                if not any(nd in n for nd in no_decay)
+                and not any(bb in n for bb in head_names)
+            ],
             "weight_decay": wd,
             "lr": lr,
         },
         {
             "params": [
                 p
+                for n, p in pl_module.named_parameters()
+                if any(nd in n for nd in no_decay)
+                and not any(bb in n for bb in head_names)
+            ],
+            'param_names': [
+                n
                 for n, p in pl_module.named_parameters()
                 if any(nd in n for nd in no_decay)
                 and not any(bb in n for bb in head_names)
@@ -230,12 +242,23 @@ def set_schedule(pl_module):
                 if not any(nd in n for nd in no_decay)
                 and any(bb in n for bb in head_names)
             ],
+            'param_names': [
+                n
+                for n, p in pl_module.named_parameters()
+                if not any(nd in n for nd in no_decay)
+                and any(bb in n for bb in head_names)
+            ],
             "weight_decay": wd,
             "lr": lr * lr_mult,
         },
         {
             "params": [
                 p
+                for n, p in pl_module.named_parameters()
+                if any(nd in n for nd in no_decay) and any(bb in n for bb in head_names)
+            ],
+            'param_names': [
+                n
                 for n, p in pl_module.named_parameters()
                 if any(nd in n for nd in no_decay) and any(bb in n for bb in head_names)
             ],

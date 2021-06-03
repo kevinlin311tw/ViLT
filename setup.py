@@ -12,5 +12,5 @@ setup(
     author_email="wonjaekim@kakao.com",
     url="https://github.com/dandelin/vilt'",
     keywords=["vision and language pretraining"],
-    install_requires=["torch", "pytorch_lightning"],
+    #install_requires=["torch", "pytorch_lightning"],
 )

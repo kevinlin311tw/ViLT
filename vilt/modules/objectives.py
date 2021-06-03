@@ -205,6 +205,10 @@ def compute_itm_wpa(pl_module, batch):
         pl_module.device
     )
     itm_labels = itm_labels[torch.randperm(itm_labels.size(0))]
+    if 'correct_false' in batch:
+        # we need to overwrite itm_labels
+        # (itm_label, correct_false): (0, 1) -> 1 and -> 0 otherwise
+        itm_labels = 1 - (1 - itm_labels) * batch['correct_false']
 
     itm_images = [
         torch.stack(

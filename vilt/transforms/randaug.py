@@ -260,6 +260,12 @@ class RandAugment:
         self.m = m  # [0, 30]
         self.augment_list = augment_list()
 
+    def __repr__(self):
+        return 'RandAugment(n={}, m={})'.format(
+            self.n,
+            self.m
+        )
+
     def __call__(self, img):
         ops = random.choices(self.augment_list, k=self.n)
         for op, minval, maxval in ops:
