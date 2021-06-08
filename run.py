@@ -9,6 +9,7 @@ from vilt.datamodules.multitask_datamodule import MTDataModule
 
 @ex.automain
 def main(_config):
+    print(_config)
     _config = copy.deepcopy(_config)
     pl.seed_everything(_config["seed"])
 
@@ -68,6 +69,7 @@ def main(_config):
         weights_summary="top",
         fast_dev_run=_config["fast_dev_run"],
         val_check_interval=_config["val_check_interval"],
+        progress_bar_refresh_rate=_config["progress_bar_refresh_rate"],
     )
 
     if not _config["test_only"]:
