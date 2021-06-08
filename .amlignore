@@ -1,0 +1,56 @@
+# compilation and distribution
+__pycache__
+_ext
+*.pyc
+*.so
+maskrcnn_benchmark.egg-info
+build
+dist
+
+# pytorch/python/numpy formats
+*.pth
+# *.pkl
+# *.npy
+
+# ipython/jupyter notebooks
+*.ipynb
+**/.ipynb_checkpoints
+
+# Editor temporaries
+*.swn
+*.swo
+*.swp
+*~
+
+# Pycharm editor settings
+.idea
+
+# VS code 
+.vscode
+
+# MacOS
+.DS_Store
+
+# project dirs
+# only ignore data and datasets in root
+/data
+/datasets
+datasets1
+models
+output
+backup
+scene_graph_benchmark
+pretrained_model
+scripts
+t-lqing
+temp
+hand_test_images
+hand_test_videos
+# hidden folders
+# .azureml
+.git
+
+coco_caption
+docs
+*.md
+

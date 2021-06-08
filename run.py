@@ -42,6 +42,9 @@ def main(_config):
     grad_steps = _config["batch_size"] // (
         _config["per_gpu_batchsize"] * num_gpus * _config["num_nodes"]
     )
+    if grad_steps == 0:
+        print("batch_size is smaller than num_gpus * per_gpu_batch_size.")
+        grad_steps = 1
 
     max_steps = _config["max_steps"] if _config["max_steps"] is not None else None
 

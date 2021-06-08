@@ -13,3 +13,6 @@ weights/
 scripts/
 demos/
 build/lib
+
+t-lqing/
+output/
