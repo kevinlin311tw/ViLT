@@ -3,30 +3,7 @@ from copy import deepcopy
 import numpy as np
 import torch
 from torch import nn
-
-def prune_linear_layer(layer, index, dim=0):
-    """ Prune a linear layer (a model parameters) to keep only entries in index.
-        Return the pruned layer as a new layer with requires_grad=True.
-        Used to remove heads.
-    """
-    index = index.to(layer.weight.device)
-    W = layer.weight.index_select(dim, index).clone().detach()
-    if layer.bias is not None:
-        if dim == 1:
-            b = layer.bias.clone().detach()
-        else:
-            b = layer.bias[index].clone().detach()
-    new_size = list(layer.weight.size())
-    new_size[dim] = len(index)
-    new_layer = nn.Linear(new_size[1], new_size[0], bias=layer.bias is not None).to(layer.weight.device)
-    new_layer.weight.requires_grad = False
-    new_layer.weight.copy_(W.contiguous())
-    new_layer.weight.requires_grad = True
-    if layer.bias is not None:
-        new_layer.bias.requires_grad = False
-        new_layer.bias.copy_(b.contiguous())
-        new_layer.bias.requires_grad = True
-    return new_layer
+from vilt.modules.vision_transformer import Mlp, Attention
 
 def prune(args, model, logger=None, prune_types=['inter', 'self']):
     if hasattr(model, 'module'): model = model.module
@@ -36,12 +13,12 @@ def prune(args, model, logger=None, prune_types=['inter', 'self']):
             pruning_ratio = args.inter_pruning_ratio or args.pruning_ratio
             pruning_ratio = int(args.config.intermediate_size * pruning_ratio)
             pruning_method = args.inter_pruning_method
-            layer_type = BertLayer
+            layer_type = Mlp
         elif tp == 'self':
             pruning_ratio = args.self_pruning_ratio or args.pruning_ratio
             pruning_ratio = int(args.config.num_attention_heads * pruning_ratio)
             pruning_method = args.self_pruning_method
-            layer_type = BertAttention
+            layer_type = Attention
 
         layers = [m for m in model.modules() if isinstance(m, layer_type)]
         slimming_coefs = [m.slimming_coef.detach().cpu().numpy().reshape(-1) for m in layers]
@@ -69,10 +46,10 @@ def prune(args, model, logger=None, prune_types=['inter', 'self']):
 
 def calculate_l1_loss(model, tp):
     assert tp in ['inter', 'self']
-    layer = BertLayer if tp == 'inter' else BertAttention
+    layer = Mlp if tp == 'inter' else Attention
     loss = 0.0
     for m in model.modules():
-        if isinstance(m, layer):
+        if isinstance(m, layer) and m.slimming:
             loss += m.slimming_coef.abs().sum()
     return loss
 

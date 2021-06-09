@@ -279,10 +279,7 @@ def pruning():
     self_slimming = True
     inter_slimming = True
 
-    l1_loss_coef = 0.
-    l1_loss_self_coef = 0.
-    l1_loss_inter_coef = 0.
-
+    l1_loss_coef = 1e-4
     pruning_steps = []
 
     self_pruning_method = 'layerwise'

@@ -6,6 +6,7 @@ import vilt.modules.vision_transformer as vit
 from transformers.models.bert.modeling_bert import BertConfig, BertEmbeddings
 from vilt.modules import heads, objectives, vilt_utils
 
+from vilt.utils.pruning import calculate_l1_loss
 
 class ViLTransformerSS(pl.LightningModule):
     def __init__(self, config):
@@ -212,6 +213,14 @@ class ViLTransformerSS(pl.LightningModule):
         # Image Retrieval and Text Retrieval
         if "irtr" in self.current_tasks:
             ret.update(objectives.compute_irtr(self, batch))
+
+        l1_loss_coef = self.hparams.config.get('l1_loss_coef', 0.)
+        if l1_loss_coef > 0.0:
+            for tp in ['self', 'inter']:
+                loss_name = 'l1_loss_' + tp 
+                loss = calculate_l1_loss(self, tp)
+                self.log(loss_name, loss, prog_bar=True)
+                ret[loss_name] = loss * l1_loss_coef
 
         return ret
 

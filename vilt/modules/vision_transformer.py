@@ -40,7 +40,7 @@ from timm.models.resnetv2 import ResNetV2
 from timm.models.registry import register_model
 from torchvision import transforms
 
-from vilt.utils.pruning import prune_linear_layer
+from transformers.modeling_utils import prune_linear_layer
 
 _logger = logging.getLogger(__name__)
 
@@ -291,7 +291,7 @@ class Mlp(nn.Module):
         x = self.act(x)
         x = self.drop(x)
         if self.slimming:
-            x *= self.slimming_coef
+            x = x * self.slimming_coef
         x = self.fc2(x)
         x = self.drop(x)
         return x
@@ -364,7 +364,7 @@ class Attention(nn.Module):
         attn = self.attn_drop(attn)
 
         if self.slimming:
-            attn *= self.slimming_coef
+            attn = attn * self.slimming_coef
 
         x = (attn @ v).transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
