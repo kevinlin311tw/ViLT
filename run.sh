@@ -3,4 +3,5 @@ python run.py with task_finetune_vqa_randaug pruning \
     num_gpus=1 num_nodes=1 per_gpu_batchsize=32 \
     progress_bar_refresh_rate=10 \
     data_root=data/VQAv2 load_path=data/vilt_200k_mlm_itm.ckpt \
+    --force \
     |& tee output/log.txt
