@@ -40,6 +40,8 @@ from timm.models.resnetv2 import ResNetV2
 from timm.models.registry import register_model
 from torchvision import transforms
 
+from vilt.utils.pruning import prune_linear_layer
+
 _logger = logging.getLogger(__name__)
 
 
@@ -267,6 +269,7 @@ class Mlp(nn.Module):
         out_features=None,
         act_layer=nn.GELU,
         drop=0.0,
+        slimming=False
     ):
         super().__init__()
         out_features = out_features or in_features
@@ -276,14 +279,40 @@ class Mlp(nn.Module):
         self.fc2 = nn.Linear(hidden_features, out_features)
         self.drop = nn.Dropout(drop)
 
+        self.hidden_features = hidden_features
+        self.slimming = slimming
+        if self.slimming:
+            self.slimming_coef = nn.Parameter(
+                torch.ones(hidden_features).reshape(1,-1) * 1.0
+            )
+
     def forward(self, x):
         x = self.fc1(x)
         x = self.act(x)
         x = self.drop(x)
+        if self.slimming:
+            x *= self.slimming_coef
         x = self.fc2(x)
         x = self.drop(x)
         return x
 
+    def prune(self, neurons):
+        # prune the neurons in the intermediate layer
+        if len(neurons) == 0:
+            return
+        index = [i for i in range(self.hidden_features) if i not in neurons]
+        index = torch.LongTensor(index)
+
+        # Prune linear layers
+        self.fc1 = prune_linear_layer(self.fc1, index)
+        self.fc2 = prune_linear_layer(self.fc2, index, dim=1)
+
+        # Prune slimming coefficients
+        if self.slimming:
+            index = index.to(self.slimming_coef.device)
+            new_data = self.slimming_coef.data.index_select(1, index).clone().detach()
+            with torch.no_grad():
+                self.slimming_coef = nn.Parameter(new_data)
 
 class Attention(nn.Module):
     def __init__(
@@ -294,6 +323,7 @@ class Attention(nn.Module):
         qk_scale=None,
         attn_drop=0.0,
         proj_drop=0.0,
+        slimming=False,
     ):
         super().__init__()
         self.num_heads = num_heads
@@ -305,6 +335,13 @@ class Attention(nn.Module):
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
+
+        self.head_dim = head_dim
+        self.all_head_dim = head_dim * num_heads
+        self.slimming = slimming
+        if self.slimming:
+            self.slimming_coef = nn.Parameter(
+                torch.ones(num_heads).reshape(1,-1,1,1) * 1.0)
 
     def forward(self, x, mask=None):
         B, N, C = x.shape
@@ -326,11 +363,44 @@ class Attention(nn.Module):
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
 
+        if self.slimming:
+            attn *= self.slimming_coef
+
         x = (attn @ v).transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
         return x, attn
 
+    def prune(self, heads):
+        # prune attention heads
+        if len(heads) == 0:
+            return
+        mask = torch.ones(self.num_heads, self.head_dim)
+        if self.slimming:
+            slimming_mask = torch.ones(self.num_heads)
+        for head in heads:
+            mask[head] = 0
+            if self.slimming:
+                slimming_mask[head] = 0
+        mask = mask.view(-1).contiguous().eq(1)
+        index = torch.arange(len(mask))[mask].long()
+        if self.slimming:
+            slimming_mask = slimming_mask.view(-1).contiguous().eq(1)
+            slimming_index = torch.arange(len(slimming_mask))[slimming_mask].long()
+
+        # Prune linear layers
+        self.proj = prune_linear_layer(self.proj, index, dim=1)
+        self.qkv = prune_linear_layer(self.qkv, torch.cat((index, index + self.all_head_dim, index + 2*self.all_head_dim)))
+        
+        # Update hyper params and store pruned heads
+        self.num_heads = self.num_heads - len(heads)
+        self.all_head_dim = self.head_dim * self.num_heads
+
+        if self.slimming:
+            slimming_index = slimming_index.to(self.slimming_coef.device)
+            new_data = self.slimming_coef.data.index_select(2, slimming_index).clone().detach()
+            with torch.no_grad():
+                self.slimming_coef = nn.Parameter(new_data)
 
 class Block(nn.Module):
     def __init__(
@@ -345,6 +415,7 @@ class Block(nn.Module):
         drop_path=0.0,
         act_layer=nn.GELU,
         norm_layer=nn.LayerNorm,
+        config=None,
     ):
         super().__init__()
         self.norm1 = norm_layer(dim)
@@ -355,6 +426,7 @@ class Block(nn.Module):
             qk_scale=qk_scale,
             attn_drop=attn_drop,
             proj_drop=drop,
+            slimming=config.get("self_slimming", False)
         )
         # NOTE: drop path for stochastic depth, we shall see if this is better than dropout here
         self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
@@ -365,6 +437,7 @@ class Block(nn.Module):
             hidden_features=mlp_hidden_dim,
             act_layer=act_layer,
             drop=drop,
+            slimming=config.get("inter_slimming", False)
         )
 
     def forward(self, x, mask=None):
@@ -497,6 +570,7 @@ class VisionTransformer(nn.Module):
                     attn_drop=attn_drop_rate,
                     drop_path=dpr[i],
                     norm_layer=norm_layer,
+                    config=config,
                 )
                 for i in range(depth)
             ]

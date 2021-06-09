@@ -40,6 +40,7 @@ def set_metrics(pl_module):
                 setattr(pl_module, f"{split}_{k}_accuracy", Accuracy())
                 setattr(pl_module, f"{split}_{k}_loss", Scalar())
 
+    setattr(pl_module, "best_metric", float("-inf"))
 
 def epoch_wrapup(pl_module):
     phase = "train" if pl_module.training else "val"
@@ -150,6 +151,8 @@ def epoch_wrapup(pl_module):
         the_metric += value
 
     pl_module.log(f"{phase}/the_metric", the_metric)
+    if phase == 'val' and the_metric > pl_module.best_metric:
+        pl_module.best_metric = the_metric.item()
 
 
 def check_non_acc_grad(pl_module):

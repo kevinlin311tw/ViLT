@@ -69,12 +69,12 @@ def config():
     fast_dev_run = False
     val_check_interval = 1.0
     test_only = False
-    progress_bar_refresh_rate = None
+    progress_bar_refresh_rate = 1
 
     # below params varies with the environment
     data_root = ""
     log_dir = "output"
-    per_gpu_batchsize = 0  # you should define this manually with per_gpu_batch_size=#
+    per_gpu_batchsize = 32  # you should define this manually with per_gpu_batch_size=#
     num_gpus = 1
     num_nodes = 1
     load_path = ""
@@ -273,3 +273,23 @@ def vit32_base():
     hidden_size = 768
     num_heads = 12
     num_layers = 12
+
+@ex.named_config
+def pruning():
+    self_slimming = True
+    inter_slimming = True
+
+    l1_loss_coef = 0.
+    l1_loss_self_coef = 0.
+    l1_loss_inter_coef = 0.
+
+    pruning_steps = []
+
+    self_pruning_method = 'layerwise'
+    inter_pruning_method = 'layerwise'
+
+    pruning_ratio = 0.
+    self_pruning_ratio = 0.
+    inter_pruning_ratio = 0.
+
+    pruning_strategy = 'small'

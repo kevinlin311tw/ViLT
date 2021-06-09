@@ -5,7 +5,9 @@ import pytorch_lightning as pl
 from vilt.config import ex
 from vilt.modules import ViLTransformerSS
 from vilt.datamodules.multitask_datamodule import MTDataModule
-
+import json
+import time
+import vilt.utils.pruning as pruning
 
 @ex.automain
 def main(_config):
@@ -72,7 +74,19 @@ def main(_config):
         progress_bar_refresh_rate=_config["progress_bar_refresh_rate"],
     )
 
+    saved_info = {}
+
+    flops, params = pruning.count_flops(model)
+    saved_info['flops'] = flops
+    saved_info['params'] = params
+
     if not _config["test_only"]:
+        tic = time.time()
         trainer.fit(model, datamodule=dm)
+        saved_info['train_time'] = round((time.time() - tic) / 3600.0, 2)
     else:
         trainer.test(model, datamodule=dm)
+
+    saved_info['best_score'] = round(model.best_metric*100, 2)
+    saved_info['config'] = _config
+    json.dump(saved_info, open(os.path.join(_config['log_dir'], 'saved_info.json'), 'w'))
