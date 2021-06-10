@@ -14,6 +14,7 @@ scripts/
 demos/
 build/lib
 
+.ipynb_checkpoints/
 t-lqing/
 output/
 data
