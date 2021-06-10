@@ -197,6 +197,7 @@ def set_schedule(pl_module):
         "norm1.weight",
         "norm2.bias",
         "norm2.weight",
+        "slimming_coef"
     ]
     head_names = ["vqa_classifier", "nlvr2_classifier"]
     lr_mult = pl_module.hparams.config["lr_mult"]

@@ -300,7 +300,7 @@ class Mlp(nn.Module):
         # prune the neurons in the intermediate layer
         if len(neurons) == 0:
             return
-        index = [i for i in range(self.hidden_features) if i not in neurons]
+        index = [i for i in range(self.fc1.out_features) if i not in neurons]
         index = torch.LongTensor(index)
 
         # Prune linear layers
@@ -344,7 +344,8 @@ class Attention(nn.Module):
                 torch.ones(num_heads).reshape(1,-1,1,1) * 1.0)
 
     def forward(self, x, mask=None):
-        B, N, C = x.shape
+        B, N, _ = x.shape
+        C = self.all_head_dim
         qkv = (
             self.qkv(x)
             .reshape(B, N, 3, self.num_heads, C // self.num_heads)
@@ -398,7 +399,7 @@ class Attention(nn.Module):
 
         if self.slimming:
             slimming_index = slimming_index.to(self.slimming_coef.device)
-            new_data = self.slimming_coef.data.index_select(2, slimming_index).clone().detach()
+            new_data = self.slimming_coef.data.index_select(1, slimming_index).clone().detach()
             with torch.no_grad():
                 self.slimming_coef = nn.Parameter(new_data)
 

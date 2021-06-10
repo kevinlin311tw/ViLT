@@ -4,19 +4,22 @@ import numpy as np
 import torch
 from torch import nn
 from vilt.modules.vision_transformer import Mlp, Attention
+from easydict import EasyDict
+import logging
 
 def prune(args, model, logger=None, prune_types=['inter', 'self']):
+    if isinstance(args, dict): args = EasyDict(args)
     if hasattr(model, 'module'): model = model.module
     
     for tp in prune_types:
         if tp == 'inter':
             pruning_ratio = args.inter_pruning_ratio or args.pruning_ratio
-            pruning_ratio = int(args.config.intermediate_size * pruning_ratio)
+            pruning_ratio = int(args.hidden_size * args.mlp_ratio * pruning_ratio)
             pruning_method = args.inter_pruning_method
             layer_type = Mlp
         elif tp == 'self':
             pruning_ratio = args.self_pruning_ratio or args.pruning_ratio
-            pruning_ratio = int(args.config.num_attention_heads * pruning_ratio)
+            pruning_ratio = int(args.num_heads * pruning_ratio)
             pruning_method = args.self_pruning_method
             layer_type = Attention
 
@@ -39,7 +42,10 @@ def prune(args, model, logger=None, prune_types=['inter', 'self']):
 
         for m, coef, thre in zip(layers, slimming_coefs, threshold):
             prune_indice = np.where(coef <= thre)[0]
-            if logger: logger.warning('Pruning {}: {}, {}'.format(tp, len(prune_indice), prune_indice[:10]))
+            if logger: 
+                logger.warning('Pruning {}: {}, {}'.format(tp, len(prune_indice), prune_indice[:10]))
+            else:
+                logging.warning('Pruning {}: {}, {}'.format(tp, len(prune_indice), prune_indice[:10]))
             m.prune(prune_indice)
 
     return model
@@ -63,8 +69,8 @@ def count_flops(model):
     inputs['text_masks'] = torch.ones(batch_size, n_txt_tokens, dtype=torch.int64)
     inputs['image'] = [torch.ones(batch_size, *img_dims, dtype=torch.float32)]
 
-    model = deepcopy(model)
-    model.to('cpu')
+    # model = deepcopy(model)
+    # model.to('cpu')
     model.current_tasks = []
     flops, params = profile(model, {'batch': inputs}, verbose=False) # one mul-add is counted as 1 flop
     params = sum(p.numel() for n, p in model.named_parameters())

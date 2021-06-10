@@ -215,12 +215,14 @@ class ViLTransformerSS(pl.LightningModule):
             ret.update(objectives.compute_irtr(self, batch))
 
         l1_loss_coef = self.hparams.config.get('l1_loss_coef', 0.)
-        if l1_loss_coef > 0.0:
-            for tp in ['self', 'inter']:
-                loss_name = 'l1_loss_' + tp 
-                loss = calculate_l1_loss(self, tp)
-                self.log(loss_name, loss, prog_bar=True)
-                ret[loss_name] = loss * l1_loss_coef
+        for tp in ['self', 'inter']:
+            loss_name = 'l1_loss_' + tp 
+            if l1_loss_coef > 0.0:
+                loss = calculate_l1_loss(self, tp) * l1_loss_coef
+            else:
+                loss = 0.
+            self.log(loss_name, loss, prog_bar=True)
+            ret[loss_name] = loss
 
         return ret
 

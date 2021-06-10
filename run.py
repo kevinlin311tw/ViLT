@@ -7,7 +7,33 @@ from vilt.modules import ViLTransformerSS
 from vilt.datamodules.multitask_datamodule import MTDataModule
 import json
 import time
-import vilt.utils.pruning as pruning
+from vilt.utils.pruning import count_flops, prune
+import logging
+
+def build_trainer(_config, max_steps, callbacks, logger, grad_steps):
+    trainer = pl.Trainer(
+        gpus=_config["num_gpus"],
+        num_nodes=_config["num_nodes"],
+        precision=_config["precision"],
+        accelerator="ddp",
+        benchmark=True,
+        deterministic=True,
+        max_epochs=_config["max_epoch"] if max_steps is None else 1000,
+        max_steps=max_steps,
+        callbacks=callbacks,
+        logger=logger,
+        prepare_data_per_node=False,
+        replace_sampler_ddp=False,
+        accumulate_grad_batches=grad_steps,
+        log_every_n_steps=10,
+        flush_logs_every_n_steps=10,
+        resume_from_checkpoint=_config["resume_from"],
+        weights_summary="top",
+        fast_dev_run=_config["fast_dev_run"],
+        val_check_interval=_config["val_check_interval"],
+        progress_bar_refresh_rate=_config["progress_bar_refresh_rate"],
+    )
+    return trainer
 
 @ex.automain
 def main(_config):
@@ -51,37 +77,44 @@ def main(_config):
 
     max_steps = _config["max_steps"] if _config["max_steps"] is not None else None
 
-    trainer = pl.Trainer(
-        gpus=_config["num_gpus"],
-        num_nodes=_config["num_nodes"],
-        precision=_config["precision"],
-        accelerator="ddp",
-        benchmark=True,
-        deterministic=True,
-        max_epochs=_config["max_epoch"] if max_steps is None else 1000,
-        max_steps=max_steps,
-        callbacks=callbacks,
-        logger=logger,
-        prepare_data_per_node=False,
-        replace_sampler_ddp=False,
-        accumulate_grad_batches=grad_steps,
-        log_every_n_steps=10,
-        flush_logs_every_n_steps=10,
-        resume_from_checkpoint=_config["resume_from"],
-        weights_summary="top",
-        fast_dev_run=_config["fast_dev_run"],
-        val_check_interval=_config["val_check_interval"],
-        progress_bar_refresh_rate=_config["progress_bar_refresh_rate"],
-    )
-
     saved_info = {}
-
-    flops, params = pruning.count_flops(model)
-    saved_info['flops'] = flops
-    saved_info['params'] = params
+    trainer = build_trainer(_config, max_steps, callbacks, logger, grad_steps)
 
     if not _config["test_only"]:
         tic = time.time()
+        original_flops, original_num_params = count_flops(model)
+        pruning_steps = _config.get('pruning_steps', [])
+        if not isinstance(pruning_steps, list):
+            pruning_steps = [pruning_steps]
+        for i in range(len(pruning_steps)):
+            n_train_steps = pruning_steps[i] - (pruning_steps[i-1] if i > 0 else 0)
+            pruning_trainer = build_trainer(_config, n_train_steps, [lr_callback], logger, grad_steps)
+            pruning_trainer.fit(model, datamodule=dm)
+            model.trainer = None
+            model = prune(_config, model)
+
+            pruned_flops, pruned_num_params = count_flops(model)
+
+            logging.info(
+                "Pruning: original num of params: %.2f, after pruning %.2f (%.1f percents)",
+                original_num_params,
+                pruned_num_params,
+                pruned_num_params / original_num_params * 100,
+            )
+            logging.info(
+                "Pruning: original FLOPS: %.2f, after pruning %.2f (%.1f percents)",
+                original_flops,
+                pruned_flops,
+                pruned_flops / original_flops * 100,
+            )
+
+            saved_info['params'] = pruned_num_params
+            saved_info['flops'] = pruned_flops
+            saved_info['params_ratio'] = round(pruned_num_params / original_num_params * 100, 2)
+            saved_info['flops_ratio'] = round(pruned_flops / original_flops * 100, 2)
+            model.best_metric = float('-inf')
+        _config['l1_loss_coef'] = 0.
+
         trainer.fit(model, datamodule=dm)
         saved_info['train_time'] = round((time.time() - tic) / 3600.0, 2)
     else:

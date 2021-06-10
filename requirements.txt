@@ -10,5 +10,6 @@ einops==0.3.0
 pyarrow==2.0.0
 sacred==0.8.2
 pandas==1.1.5
+easydict
 git+https://github.com/rwightman/pytorch-image-models.git
 git+https://github.com/liqing-ustc/pytorch-OpCounter.git
