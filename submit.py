@@ -21,7 +21,7 @@ submit_cmd = "python -m aml_tools.aml_submit --input_dir . --output_dir {} --num
 if task == 'caption':
     pass
 elif task == 'vqa':
-    job_cmd = 'python run.py with task_finetune_vqa_randaug pruning \
+    job_cmd = 'python run.py with task_finetune_vqa_randaug \
         num_gpus=8 num_nodes=1 per_gpu_batchsize=32 \
         progress_bar_refresh_rate=100 \
         data_root=data/VQAv2 load_path=data/vilt_200k_mlm_itm.ckpt \

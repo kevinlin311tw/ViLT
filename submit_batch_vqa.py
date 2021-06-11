@@ -27,7 +27,7 @@ job_cmd = 'python run.py with task_finetune_vqa_randaug pruning \
 
 n_repeat = 1
 for seed in range(n_repeat):
-    for pruning_steps in [4000, 3000, 2000, 1000]:
+    for pruning_steps in [7000]:
         for pruning_ratio in [0.2, 0.4, 0.6, 0.8]:
             for pruning_strategy in ['small', 'large', 'random']:
                 args = (pruning_strategy, pruning_ratio, pruning_steps, seed)
