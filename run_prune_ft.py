@@ -10,6 +10,8 @@ import time
 from vilt.utils.pruning import count_flops, prune
 import logging
 
+
+
 def build_trainer(_config, max_steps, callbacks, logger, grad_steps):
     trainer = pl.Trainer(
         gpus=_config["num_gpus"],
@@ -43,7 +45,16 @@ def main(_config):
 
     dm = MTDataModule(_config, dist=True)
 
+    # init ViLT and load earlybird weights
     model = ViLTransformerSS(_config)
+    # run prunning
+    model = prune(_config, model)
+    pruned_flops, pruned_num_params = count_flops(model)
+    # load pruned weights
+    model.load_prune_ckpt()
+    # add downstream-specific network
+    model.add_downstream_head()
+
     exp_name = f'{_config["exp_name"]}'
 
     os.makedirs(_config["log_dir"], exist_ok=True)
@@ -78,42 +89,8 @@ def main(_config):
     max_steps = _config["max_steps"] if _config["max_steps"] is not None else None
 
     saved_info = {}
-    
     if not _config["test_only"]:
         tic = time.time()
-        original_flops, original_num_params = count_flops(model)
-        pruning_steps = _config.get('pruning_steps', [])
-        if not isinstance(pruning_steps, list):
-            pruning_steps = [pruning_steps]
-        for i in range(len(pruning_steps)):
-            n_train_steps = pruning_steps[i] - (pruning_steps[i-1] if i > 0 else 0)
-            pruning_trainer = build_trainer(_config, n_train_steps, [lr_callback], logger, grad_steps)
-            pruning_trainer.fit(model, datamodule=dm)
-            model.trainer = None
-            model = prune(_config, model)
-
-            pruned_flops, pruned_num_params = count_flops(model)
-
-            logging.info(
-                "Pruning: original num of params: %.2f, after pruning %.2f (%.1f percents)",
-                original_num_params,
-                pruned_num_params,
-                pruned_num_params / original_num_params * 100,
-            )
-            logging.info(
-                "Pruning: original FLOPS: %.2f, after pruning %.2f (%.1f percents)",
-                original_flops,
-                pruned_flops,
-                pruned_flops / original_flops * 100,
-            )
-
-            saved_info['params'] = pruned_num_params
-            saved_info['flops'] = pruned_flops
-            saved_info['params_ratio'] = round(pruned_num_params / original_num_params * 100, 2)
-            saved_info['flops_ratio'] = round(pruned_flops / original_flops * 100, 2)
-            model.best_metric = float('-inf')
-        _config['l1_loss_coef'] = 0.
-
         trainer = build_trainer(_config, max_steps, callbacks, logger, grad_steps)
         trainer.fit(model, datamodule=dm)
         saved_info['train_time'] = round((time.time() - tic) / 3600.0, 2)

@@ -3,9 +3,9 @@ import os
 import pdb
 from datetime import datetime
 
-ws_config = 'itp_acv' 
+# ws_config = 'itp_acv' 
 # ws_config = 'vlp_cust' 
-# ws_config = 'vlp' 
+ws_config = 'vlp' 
 stamp = ''
 
 if not stamp:
@@ -28,8 +28,8 @@ job_cmd = 'python run.py with task_finetune_vqa_randaug pruning \
 n_repeat = 1
 for seed in range(n_repeat):
     for pruning_steps in [7000]:
-        for pruning_ratio in [0.2, 0.4, 0.6, 0.8]:
-            for pruning_strategy in ['small', 'large', 'random']:
+        for pruning_ratio in [0.2]:
+            for pruning_strategy in ['small']:
                 args = (pruning_strategy, pruning_ratio, pruning_steps, seed)
                 resolved_output_dir = output_dir.format(task, *args)
                 resolved_job_cmd = job_cmd.format(*args)

@@ -108,6 +108,87 @@ class ViLTransformerSS(pl.LightningModule):
             state_dict = ckpt["state_dict"]
             self.load_state_dict(state_dict, strict=False)
 
+        # ===================== pretrain ===================== #
+        if (
+            self.hparams.config["is_pretrain"]
+        ):
+            print('self.text_embeddings: random init')
+            self.text_embeddings.apply(objectives.init_weights)
+            print('self.token_type_embeddings: random init')
+            self.token_type_embeddings.apply(objectives.init_weights)
+            print('self.transformer: pretrained')
+            self.transformer = getattr(vit, self.hparams.config["vit"])(
+                pretrained=True, config=self.hparams.config
+            )
+            print('self.pooler: random init')
+            self.pooler.apply(objectives.init_weights)
+
+            if config["loss_names"]["mlm"] > 0:
+                print('self.mlm_score: random init')
+                self.mlm_score.apply(objectives.init_weights)
+
+            if config["loss_names"]["itm"] > 0:
+                print('self.itm_score: random init')
+                self.itm_score.apply(objectives.init_weights)
+
+            if config["loss_names"]["mpp"] > 0:
+                print('self.mpp_score: random init')
+                self.mpp_score.apply(objectives.init_weights)
+
+
+
+        # ===================== Earlybird Downstream ===================== #
+        if (
+            self.hparams.config["earlybird_path"] != ""
+        ):
+            ckpt = torch.load(self.hparams.config["earlybird_path"], map_location="cpu")
+            state_dict = ckpt["state_dict"]
+            self.load_state_dict(state_dict, strict=False)
+
+    def load_prune_ckpt(self):
+        ckpt = torch.load(self.hparams.config["pruned_path"], map_location="cpu")
+        state_dict = ckpt["state_dict"]
+        self.load_state_dict(state_dict, strict=False)
+
+    def add_downstream_head(self):
+        hs = self.hparams.config["hidden_size"]
+
+        if self.hparams.config["loss_names"]["vqa"] > 0:
+            vs = self.hparams.config["vqav2_label_size"]
+            self.vqa_classifier = nn.Sequential(
+                nn.Linear(hs, hs * 2),
+                nn.LayerNorm(hs * 2),
+                nn.GELU(),
+                nn.Linear(hs * 2, vs),
+            )
+            self.vqa_classifier.apply(objectives.init_weights)
+
+        if self.hparams.config["loss_names"]["nlvr2"] > 0:
+            self.nlvr2_classifier = nn.Sequential(
+                nn.Linear(hs * 2, hs * 2),
+                nn.LayerNorm(hs * 2),
+                nn.GELU(),
+                nn.Linear(hs * 2, 2),
+            )
+            self.nlvr2_classifier.apply(objectives.init_weights)
+            emb_data = self.token_type_embeddings.weight.data
+            self.token_type_embeddings = nn.Embedding(3, hs)
+            self.token_type_embeddings.apply(objectives.init_weights)
+            self.token_type_embeddings.weight.data[0, :] = emb_data[0, :]
+            self.token_type_embeddings.weight.data[1, :] = emb_data[1, :]
+            self.token_type_embeddings.weight.data[2, :] = emb_data[1, :]
+
+        if self.hparams.config["loss_names"]["irtr"] > 0:
+            self.rank_output = nn.Linear(hs, 1)
+            self.rank_output.weight.data = self.itm_score.fc.weight.data[1:, :]
+            self.rank_output.bias.data = self.itm_score.fc.bias.data[1:]
+            self.margin = 0.2
+            for p in self.itm_score.parameters():
+                p.requires_grad = False
+
+        vilt_utils.set_metrics(self)
+        self.current_tasks = list()
+
     def infer(
         self,
         batch,

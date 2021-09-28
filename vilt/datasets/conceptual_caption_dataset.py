@@ -11,7 +11,7 @@ class ConceptualCaptionDataset(BaseDataset):
         if split == "train":
             names = [f"conceptual_caption_train_{i}" for i in range(30)]
         elif split == "val":
-            names = ["conceptual_caption_val_0"]
+            names = ["coco_caption_karpathy_val"]
 
         super().__init__(*args, **kwargs, names=names, text_column_name="caption")
 

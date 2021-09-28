@@ -1,6 +1,6 @@
 from sacred import Experiment
 
-ex = Experiment("ViLT")
+ex = Experiment("ViLT", save_git_info=False)
 
 
 def _loss_names(d):
@@ -80,7 +80,10 @@ def config():
     load_path = ""
     num_workers = 8
     precision = 16
-
+    local_rank = 0
+    is_pretrain = False
+    earlybird_path = ""
+    pruned_path = ""
 
 # Named configs for "environment" which define gpus and nodes, and paths
 @ex.named_config
@@ -92,6 +95,36 @@ def env_dandelin():
 
 
 # Named configs for "task" which define datasets, loss_names and desired batch_size, warmup_steps, epochs, and exp_name
+@ex.named_config
+def task_mlm_itm_cocotest():
+    exp_name = "mlm_itm"
+    datasets = ["coco"] 
+    loss_names = _loss_names({"itm": 1, "mlm": 1})
+    batch_size = 4096
+    max_epoch = 10
+    max_image_len = 200
+    is_pretrain = True
+
+@ex.named_config
+def task_mlm_itm_pretrain_only():
+    exp_name = "mlm_itm"
+    datasets =  ["coco", "vg", "sbu", "gcc"]
+    loss_names = _loss_names({"itm": 1, "mlm": 1})
+    batch_size = 4096
+    max_image_len = 200
+    is_pretrain = True
+
+@ex.named_config
+def task_mlm_itm_randaug_pretrain_only():
+    exp_name = "mlm_itm"
+    datasets =  ["coco", "vg", "sbu", "gcc"]
+    train_transform_keys = ["pixelbert_randaug"]
+    loss_names = _loss_names({"itm": 1, "mlm": 1})
+    batch_size = 4096
+    max_image_len = 200
+    is_pretrain = True
+
+
 @ex.named_config
 def task_mlm_itm():
     exp_name = "mlm_itm"
